@@ -19,4 +19,5 @@ Your entries are stored in `localStorage` and stay on your device.
 ## Tailored resume preview
 
 1. Enter the **Job position**, **Company**, and **Job description**.
-2. Click **Submit**. The page will save your draft locally and display a tailored resume preview based on the closest matching stored role profile (resumes stay hidden and are used only for tailoring).
+2. (Optional) Toggle **Add Information Security Analyst (Independent Consultant) entry** if you want that provided project added verbatim to the tailored output.
+3. Click **Submit**. The page will save your draft locally and display a tailored resume preview based on the closest matching stored role profile (resumes stay hidden and are used only for tailoring).
