@@ -1,7 +1,6 @@
 # ELEVN-site
 
 Simple offline-friendly starter page for tracking job applications. Open `index.html` directly in your browser or serve locally to see the form. The page can also generate a tailored resume preview from stored role profiles when you submit a job description — nothing is sent over the network.
-Simple offline-friendly starter page for tracking job applications. Open `index.html` directly in your browser or serve locally to see the form.
 
 ## Run locally
 
