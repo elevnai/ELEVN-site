@@ -1,6 +1,6 @@
 # ELEVN-site
 
-Simple starter page for tracking job applications with a Bugatti-inspired dark, blue, and red aesthetic, now with animated gradients and glints to keep the page feeling alive. Open `index.html` directly in your browser or serve locally to see the form. The page uses ChatGPT to generate a tailored resume preview from stored role profiles when you submit a job description. An OpenAI API key is required.
+Simple starter page for tracking job applications with a Bugatti-inspired dark, blue, and red aesthetic, now with animated gradients and glints to keep the page feeling alive. Open `index.html` directly in your browser or serve locally to see the form. The page uses ChatGPT to generate a tailored resume preview from stored role profiles when you submit a job description. An OpenAI API key is required and the page must be online to submit (offline use is not supported; the submit button is disabled when offline).
 
 ## Project structure
 

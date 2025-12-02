@@ -1,9 +1,11 @@
 (function () {
   const statusBanner = document.getElementById('status');
+  const connectionBanner = document.getElementById('connection-status');
   const lockApiButton = document.getElementById('lock-api');
   const unlockApiButton = document.getElementById('unlock-api');
   const passphraseInput = document.getElementById('api-passphrase');
   const saveDraftButton = document.getElementById('save-draft');
+  const submitButton = document.querySelector('form button[type="submit"]');
   const tailoredOutput = document.createElement('section');
   tailoredOutput.className = 'note';
   tailoredOutput.id = 'tailored-output';
@@ -26,6 +28,26 @@
     if (!statusBanner) return;
     statusBanner.textContent = message;
     statusBanner.style.borderColor = type === 'error' ? 'rgba(237, 28, 36, 0.6)' : 'rgba(255, 255, 255, 0.16)';
+  }
+
+  function updateConnectionStatus() {
+    if (!connectionBanner) return;
+    const online = navigator.onLine !== false;
+    if (online) {
+      connectionBanner.textContent =
+        'Online mode active. Submissions call the OpenAI Chat Completions API with your provided key.';
+      connectionBanner.style.borderColor = 'rgba(255, 255, 255, 0.16)';
+    } else {
+      connectionBanner.textContent =
+        'Offline detected. Connect to the internet to submit—offline tailoring is not supported.';
+      connectionBanner.style.borderColor = 'rgba(237, 28, 36, 0.6)';
+    }
+
+    if (submitButton) {
+      submitButton.disabled = !online;
+      submitButton.textContent = online ? 'Submit' : 'Go online to submit';
+      submitButton.setAttribute('aria-disabled', String(!online));
+    }
   }
   
   const enc = new TextEncoder();
@@ -77,6 +99,15 @@
     event.preventDefault();
   
     const encrypted = localStorage.getItem(ENCRYPTED_KEY_STORAGE_KEY);
+
+    if (navigator.onLine === false) {
+      tailoredOutput.style.display = 'block';
+      tailoredOutput.textContent = 'You appear to be offline. Connect to the internet to submit to ChatGPT.';
+      showStatus('Connect to the internet before submitting to ChatGPT.', 'error');
+      updateConnectionStatus();
+      return;
+    }
+
     if (!apiKeyInput.value.trim() && encrypted) {
       const passphrase = passphraseInput.value;
       if (!passphrase) {
@@ -115,7 +146,10 @@
     } catch (error) {
       console.error('ChatGPT tailoring failed.', error);
       tailoredOutput.style.display = 'block';
-      tailoredOutput.textContent = 'ChatGPT tailoring failed. Please check your API key or network connection and try again.';
+      const reason = error?.message ? ` (${error.message})` : '';
+      tailoredOutput.textContent =
+        'ChatGPT tailoring failed. Please check your API key or network connection and try again.' + reason;
+      showStatus('ChatGPT tailoring failed. Verify your API key and connection.' + reason, 'error');
     }
   });
 
@@ -151,7 +185,7 @@
     const description = document.getElementById('description').value;
     const includeConsultant = document.getElementById('include-consultant').checked;
     const apiKey = apiKeyInput.value.trim();
-  
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -168,9 +202,10 @@
         max_tokens: 600
       })
     });
-  
+
     if (!response.ok) {
-      throw new Error(`ChatGPT request failed: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`ChatGPT request failed: ${response.status} ${response.statusText}. ${errorText}`);
     }
   
     const data = await response.json();
@@ -239,7 +274,11 @@
       console.error('Unable to restore draft', err);
     }
   })();
-  
+
+  updateConnectionStatus();
+  window.addEventListener('online', updateConnectionStatus);
+  window.addEventListener('offline', updateConnectionStatus);
+
   lockApiButton.addEventListener('click', async () => {
     const apiKey = apiKeyInput.value.trim();
     const passphrase = passphraseInput.value;
