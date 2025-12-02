@@ -171,6 +171,7 @@
       </div>
       <div class="actions">
         <button type="button" onclick="saveDraft()">Save locally</button>
+        <button type="submit">Submit</button>
       </div>
     </form>
 
@@ -178,6 +179,14 @@
   </div>
 
   <script>
+    const form = document.querySelector('form');
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      saveDraft();
+      alert('Form submitted locally! Draft saved for your records.');
+    });
+
     function saveDraft() {
       const data = {
         position: document.getElementById('position').value,
