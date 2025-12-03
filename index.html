@@ -55,10 +55,16 @@
       </div>
     </form>
 
-    <p class="note" id="connection-status">Online mode is required. Submitting calls ChatGPT over the network with your API key; offline use is not supported.</p>
-    <p class="note" id="status">Your entries stay on this page until you submit. Submitting will call ChatGPT via OpenAI with your key, which is encrypted locally with your passphrase.</p>
+  <p class="note" id="connection-status">Online mode is required. Submitting calls ChatGPT over the network with your API key; offline use is not supported.</p>
+  <p class="note" id="status">Your entries stay on this page until you submit. Submitting will call ChatGPT via OpenAI with your key, which is encrypted locally with your passphrase.</p>
+
+    <section class="note" id="tailored-output" style="display: none;"></section>
+    <div class="actions" id="tailored-actions" style="display: none; justify-content: flex-start;">
+      <button type="button" id="download-docx">Download DOCX</button>
+    </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.4.0/docx.min.js" integrity="sha512-nMf3CmxUWoYr9fFCJqHzTo2AkLW+vQIqSfX/T1sUXFgn2Ew07N3EwMacY6XXI6OGoH5q07bPTG2sR8fkPMNPZw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="data/resumes.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
