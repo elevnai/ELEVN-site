@@ -6,21 +6,24 @@
   const passphraseInput = document.getElementById('api-passphrase');
   const saveDraftButton = document.getElementById('save-draft');
   const submitButton = document.querySelector('form button[type="submit"]');
-  const tailoredOutput = document.createElement('section');
-  tailoredOutput.className = 'note';
-  tailoredOutput.id = 'tailored-output';
-  tailoredOutput.style.display = 'none';
-  document.querySelector('.container').appendChild(tailoredOutput);
+  const tailoredOutput = document.getElementById('tailored-output');
+  const tailoredActions = document.getElementById('tailored-actions');
+  const downloadDocxButton = document.getElementById('download-docx');
 
   const { consultantExperience = '', resumeLibrary = [] } = window.resumeData || {};
   if (!resumeLibrary.length) {
     console.warn('Resume library is empty; tailoring cannot proceed without data.');
   }
 
+  let lastTailoredData = null;
+
   const form = document.querySelector('form');
   const apiKeyInput = document.getElementById('api-key');
   const clearApiKeyButton = document.getElementById('clear-api');
-  
+  const docxReady = Boolean(
+    window.docx?.Document && window.docx?.HeadingLevel && window.docx?.Packer && window.docx?.Paragraph
+  );
+
   const DRAFT_STORAGE_KEY = 'job-notes';
   const ENCRYPTED_KEY_STORAGE_KEY = 'openai-api-key-encrypted';
   
@@ -94,6 +97,93 @@
     );
     return dec.decode(decrypted);
   }
+
+  function sanitizeForFilename(value) {
+    return value
+      ? value
+          .toString()
+          .trim()
+          .replace(/[^a-z0-9]+/gi, '-')
+          .replace(/(^-|-$)/g, '')
+      : '';
+  }
+
+  function buildDocxFilename(data) {
+    const parts = [sanitizeForFilename(data.position), sanitizeForFilename(data.company), sanitizeForFilename(data.role)].filter(
+      Boolean
+    );
+    return parts.join('-') || 'tailored-resume';
+  }
+
+  function bulletParagraphs(items, Paragraph) {
+    if (!items?.length) return [];
+    return items.filter(Boolean).map(
+      (item) =>
+        new Paragraph({
+          text: item,
+          bullet: { level: 0 },
+          spacing: { after: 80 }
+        })
+    );
+  }
+
+  function buildDocxBlob(data) {
+    const { Document, HeadingLevel, Packer, Paragraph, TextRun } = window.docx || {};
+    if (!Document || !HeadingLevel || !Packer || !Paragraph) {
+      throw new Error('DOCX generator unavailable.');
+    }
+
+    const children = [
+      new Paragraph({
+        children: [new TextRun({ text: data.role || 'Tailored Resume', bold: true })],
+        heading: HeadingLevel.TITLE,
+        spacing: { after: 200 }
+      })
+    ];
+
+    if (data.company || data.position) {
+      const details = [data.position, data.company].filter(Boolean).join(' at ');
+      children.push(
+        new Paragraph({
+          text: details,
+          spacing: { after: 160 }
+        })
+      );
+    }
+
+    function addTextSection(title, text) {
+      if (!text) return;
+      children.push(new Paragraph({ text: title, heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 80 } }));
+      children.push(new Paragraph({ text, spacing: { after: 160 } }));
+    }
+
+    function addBulletSection(title, items) {
+      const bullets = bulletParagraphs(items, Paragraph);
+      if (!bullets.length) return;
+      children.push(new Paragraph({ text: title, heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 80 } }));
+      children.push(...bullets);
+    }
+
+    addTextSection('Summary', data.summary || 'No summary provided.');
+    addBulletSection('Focused Skills', data.highlightedSkills);
+    addBulletSection('Relevant Projects', data.projects);
+    addBulletSection('Experience Highlights', data.experience);
+    addTextSection('Certifications', data.certifications);
+    addTextSection('Tools & Platforms', data.tools);
+
+    if (data.includeConsultant && consultantExperience) {
+      children.push(
+        new Paragraph({ text: 'Additional Experience (as provided)', heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 80 } })
+      );
+      consultantExperience
+        .split(/\n+/)
+        .filter(Boolean)
+        .forEach((line) => children.push(new Paragraph({ text: line, spacing: { after: 80 } })));
+    }
+
+    const doc = new Document({ sections: [{ properties: {}, children }] });
+    return Packer.toBlob(doc);
+  }
   
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -101,8 +191,12 @@
     const encrypted = localStorage.getItem(ENCRYPTED_KEY_STORAGE_KEY);
 
     if (navigator.onLine === false) {
+      lastTailoredData = null;
       tailoredOutput.style.display = 'block';
       tailoredOutput.textContent = 'You appear to be offline. Connect to the internet to submit to ChatGPT.';
+      if (tailoredActions) {
+        tailoredActions.style.display = 'none';
+      }
       showStatus('Connect to the internet before submitting to ChatGPT.', 'error');
       updateConnectionStatus();
       return;
@@ -149,12 +243,25 @@
       const reason = error?.message ? ` (${error.message})` : '';
       tailoredOutput.textContent =
         'ChatGPT tailoring failed. Please check your API key or network connection and try again.' + reason;
+      lastTailoredData = null;
+      if (tailoredActions) {
+        tailoredActions.style.display = 'none';
+      }
       showStatus('ChatGPT tailoring failed. Verify your API key and connection.' + reason, 'error');
     }
   });
 
   if (saveDraftButton) {
     saveDraftButton.addEventListener('click', saveDraft);
+  }
+
+  if (downloadDocxButton) {
+    if (!docxReady) {
+      downloadDocxButton.disabled = true;
+      downloadDocxButton.textContent = 'DOCX unavailable';
+      downloadDocxButton.setAttribute('aria-disabled', 'true');
+    }
+    downloadDocxButton.addEventListener('click', handleDocxDownload);
   }
   
   function buildChatPrompt(position, company, description, includeConsultant) {
@@ -242,6 +349,53 @@
       <strong>Tools & Platforms:</strong> ${data.tools}
       ${data.includeConsultant ? `<br><br><strong>Additional Experience (as provided):</strong><pre style="white-space: pre-wrap; background: rgba(255,255,255,0.02); padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">${consultantExperience}</pre>` : ''}
     `;
+
+    lastTailoredData = {
+      ...data,
+      position: document.getElementById('position').value,
+      company: document.getElementById('company').value
+    };
+
+    if (tailoredActions && downloadDocxButton) {
+      tailoredActions.style.display = 'flex';
+      downloadDocxButton.disabled = !docxReady;
+      downloadDocxButton.textContent = docxReady ? 'Download DOCX' : 'DOCX unavailable';
+      downloadDocxButton.setAttribute('aria-disabled', String(!docxReady));
+      if (!docxReady) {
+        showStatus('DOCX generator unavailable; reload the page to try again.', 'error');
+      }
+    }
+  }
+
+  async function handleDocxDownload() {
+    if (!lastTailoredData || !downloadDocxButton) return;
+    if (!docxReady) {
+      showStatus('DOCX generation is unavailable. Please reload the page and try again.', 'error');
+      return;
+    }
+    const originalText = downloadDocxButton.textContent;
+    downloadDocxButton.disabled = true;
+    downloadDocxButton.textContent = 'Preparing DOCX...';
+    try {
+      const blob = await buildDocxBlob(lastTailoredData);
+      const filename = `${buildDocxFilename(lastTailoredData)}.docx`;
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(link.href);
+        document.body.removeChild(link);
+      }, 2000);
+      showStatus('DOCX download ready.', 'info');
+    } catch (error) {
+      console.error('DOCX generation failed.', error);
+      showStatus('Unable to generate the DOCX file. Please try again.', 'error');
+    } finally {
+      downloadDocxButton.disabled = false;
+      downloadDocxButton.textContent = originalText;
+    }
   }
   
   function saveDraft() {
@@ -328,6 +482,10 @@
     saveDraft();
     tailoredOutput.style.display = 'block';
     tailoredOutput.textContent = 'Stored API key cleared for this browser. Enter your key and passphrase to save again.';
+    lastTailoredData = null;
+    if (tailoredActions) {
+      tailoredActions.style.display = 'none';
+    }
     showStatus('Stored API key cleared.', 'info');
   });
 })();
